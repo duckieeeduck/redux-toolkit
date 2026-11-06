@@ -220,7 +220,7 @@ const Component = () => {
 
 The [`refetchOnFocus`](../api/createApi.mdx#refetchonfocus) option allows you to control whether RTK Query will try to refetch all subscribed queries after the application window regains focus.
 
-Each subscriber uses its own value or inherits the `createApi` default when its value is unset. A shared query refetches if any subscriber resolves to `true`. One subscriber's `false` does not disable another subscriber's inherited `true`.
+Each subscriber uses its own value or inherits the `createApi` default when its value is unset. A shared query refetches if any subscriber resolves to `true`. One subscriber's `false` does not disable another subscriber's inherited `true`. To suppress refetching under a global `true`, every subscriber must explicitly set `refetchOnFocus: false` (or `refetchOnReconnect: false`).
 
 If you specify this option alongside `skip: true`, this will not be evaluated until skip is false.
 

@@ -577,51 +577,54 @@ describe('hooks tests', () => {
       ])
     })
 
-    test('useQuery hook respects refetchOnMountOrArgChange: true', async () => {
-      let data, isLoading, isFetching
-      function User() {
-        ;({ data, isLoading, isFetching } =
-          api.endpoints.getIncrementedAmount.useQuery(undefined, {
-            refetchOnMountOrArgChange: true,
-          }))
-        return (
-          <div>
-            <div data-testid="isLoading">{String(isLoading)}</div>
-            <div data-testid="isFetching">{String(isFetching)}</div>
-            <div data-testid="amount">{String(data?.amount)}</div>
-          </div>
+    test.each([true, 0])(
+      'useQuery hook respects refetchOnMountOrArgChange: %s',
+      async (refetchOnMountOrArgChange) => {
+        let data, isLoading, isFetching
+        function User() {
+          ;({ data, isLoading, isFetching } =
+            api.endpoints.getIncrementedAmount.useQuery(undefined, {
+              refetchOnMountOrArgChange,
+            }))
+          return (
+            <div>
+              <div data-testid="isLoading">{String(isLoading)}</div>
+              <div data-testid="isFetching">{String(isFetching)}</div>
+              <div data-testid="amount">{String(data?.amount)}</div>
+            </div>
+          )
+        }
+
+        const { unmount } = render(<User />, { wrapper: storeRef.wrapper })
+
+        await waitFor(() =>
+          expect(screen.getByTestId('isLoading').textContent).toBe('true'),
         )
-      }
+        await waitFor(() =>
+          expect(screen.getByTestId('isLoading').textContent).toBe('false'),
+        )
 
-      const { unmount } = render(<User />, { wrapper: storeRef.wrapper })
+        await waitFor(() =>
+          expect(screen.getByTestId('amount').textContent).toBe('1'),
+        )
 
-      await waitFor(() =>
-        expect(screen.getByTestId('isLoading').textContent).toBe('true'),
-      )
-      await waitFor(() =>
-        expect(screen.getByTestId('isLoading').textContent).toBe('false'),
-      )
+        unmount()
 
-      await waitFor(() =>
-        expect(screen.getByTestId('amount').textContent).toBe('1'),
-      )
+        render(<User />, { wrapper: storeRef.wrapper })
+        // Let's make sure we actually fetch, and we increment
+        expect(screen.getByTestId('isLoading').textContent).toBe('false')
+        await waitFor(() =>
+          expect(screen.getByTestId('isFetching').textContent).toBe('true'),
+        )
+        await waitFor(() =>
+          expect(screen.getByTestId('isFetching').textContent).toBe('false'),
+        )
 
-      unmount()
-
-      render(<User />, { wrapper: storeRef.wrapper })
-      // Let's make sure we actually fetch, and we increment
-      expect(screen.getByTestId('isLoading').textContent).toBe('false')
-      await waitFor(() =>
-        expect(screen.getByTestId('isFetching').textContent).toBe('true'),
-      )
-      await waitFor(() =>
-        expect(screen.getByTestId('isFetching').textContent).toBe('false'),
-      )
-
-      await waitFor(() =>
-        expect(screen.getByTestId('amount').textContent).toBe('2'),
-      )
-    })
+        await waitFor(() =>
+          expect(screen.getByTestId('amount').textContent).toBe('2'),
+        )
+      },
+    )
 
     test('useQuery does not refetch when refetchOnMountOrArgChange: NUMBER condition is not met', async () => {
       let data, isLoading, isFetching

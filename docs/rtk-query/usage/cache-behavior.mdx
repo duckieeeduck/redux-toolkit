@@ -172,7 +172,7 @@ Passing a `number` as a value in seconds will use the following behavior:
 - If there is no query, it will fetch the data.
 - If there is an existing query, but the amount of time specified since the last query has not elapsed, it will serve the existing cached data.
 
-A numeric `0` always refetches when a subscriber is added. This also applies to `forceRefetch: 0` on `initiate()`. Use `false` to disable age-based refetching.
+A numeric `0` always refetches when a subscriber is added. This also applies to `forceRefetch: 0` on `initiate()`. Use `false` to disable age-based refetching. Directional infinite query fetches load one page, or do nothing if no such page exists.
 
 ```ts title="Configuring re-fetching on subscription if data exceeds a given time"
 // file: types.ts noEmit

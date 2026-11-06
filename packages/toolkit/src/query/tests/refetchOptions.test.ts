@@ -91,46 +91,64 @@ describe('refetch option composition', () => {
     expect(baseQuery).toHaveBeenCalledOnce()
   })
 
-  test.each([
-    { direction: 'forward', globalZero: true },
-    { direction: 'backward', globalZero: true },
-    { direction: 'forward', globalZero: false },
-    { direction: 'backward', globalZero: false },
-  ] as const)(
-    'zero refetch skips exhausted $direction pages with globalZero=$globalZero',
-    async ({ direction, globalZero }) => {
-      const onQueryStarted = vi.fn()
-      const baseQuery = vi.fn(async (page: number) => ({ data: page }))
-      const api = createApi({
-        baseQuery,
-        refetchOnMountOrArgChange: globalZero ? 0 : false,
-        endpoints: (build) => ({
-          pages: build.infiniteQuery<number, string, number>({
-            infiniteQueryOptions: {
-              initialPageParam: 0,
-              getNextPageParam: () => undefined,
-              getPreviousPageParam: () => undefined,
-            },
-            query: ({ pageParam }) => pageParam,
-            onQueryStarted,
-          }),
+  function makePagesApi(
+    refetchOnMountOrArgChange: boolean | number,
+    getNextPageParam: (lastPage: number) => number | undefined,
+  ) {
+    const onQueryStarted = vi.fn()
+    const baseQuery = vi.fn(async (page: number) => ({ data: page }))
+    const api = createApi({
+      baseQuery,
+      refetchOnMountOrArgChange,
+      endpoints: (build) => ({
+        pages: build.infiniteQuery<number, string, number>({
+          infiniteQueryOptions: {
+            initialPageParam: 0,
+            getNextPageParam,
+            getPreviousPageParam: () => undefined,
+          },
+          query: ({ pageParam }) => pageParam,
+          onQueryStarted,
         }),
-      })
-      const store = configureStore({
-        reducer: { [api.reducerPath]: api.reducer },
-        middleware: (getDefaultMiddleware) =>
-          getDefaultMiddleware().concat(api.middleware),
-      })
-      cleanups.push(() => store.dispatch(api.util.resetApiState()))
+      }),
+    })
+    const store = configureStore({
+      reducer: { [api.reducerPath]: api.reducer },
+      middleware: (getDefaultMiddleware) =>
+        getDefaultMiddleware().concat(api.middleware),
+    })
+    cleanups.push(() => store.dispatch(api.util.resetApiState()))
+    return { api, store, baseQuery, onQueryStarted }
+  }
+
+  const forcedOptions: Array<{
+    globalValue: boolean | number
+    forceRefetch?: boolean | number
+  }> = [
+    { globalValue: false, forceRefetch: 0 },
+    { globalValue: false, forceRefetch: true },
+    { globalValue: 0 },
+    { globalValue: true },
+    { globalValue: 1 },
+  ]
+
+  test.each(
+    (['forward', 'backward'] as const).flatMap((direction) =>
+      forcedOptions.map((options) => ({ direction, ...options })),
+    ),
+  )(
+    'forced fetch skips exhausted $direction pages with global $globalValue and forceRefetch $forceRefetch',
+    async ({ direction, globalValue, forceRefetch }) => {
+      const { api, store, baseQuery, onQueryStarted } = makePagesApi(
+        globalValue,
+        () => undefined,
+      )
       await store.dispatch(api.endpoints.pages.initiate('a'))
       const before = api.endpoints.pages.select('a')(store.getState())
       vi.setSystemTime(Date.now() + 1000)
 
       await store.dispatch(
-        api.endpoints.pages.initiate('a', {
-          direction,
-          ...(globalZero ? {} : { forceRefetch: 0 }),
-        }),
+        api.endpoints.pages.initiate('a', { direction, forceRefetch }),
       )
 
       expect(baseQuery).toHaveBeenCalledOnce()
@@ -140,6 +158,23 @@ describe('refetch option composition', () => {
       ).toBe(before.fulfilledTimeStamp)
     },
   )
+
+  test('zero refetch with a direction appends one page when a next page exists', async () => {
+    const { api, store, baseQuery } = makePagesApi(false, (page) => page + 1)
+    await store.dispatch(api.endpoints.pages.initiate('a'))
+
+    await store.dispatch(
+      api.endpoints.pages.initiate('a', {
+        direction: 'forward',
+        forceRefetch: 0,
+      }),
+    )
+
+    expect(baseQuery).toHaveBeenCalledTimes(2)
+    expect(
+      api.endpoints.pages.select('a')(store.getState()).data?.pages,
+    ).toEqual([0, 1])
+  })
 
   describe.each([
     { option: 'refetchOnFocus', event: 'onFocus' },
